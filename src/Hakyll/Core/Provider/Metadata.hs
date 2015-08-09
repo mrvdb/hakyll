@@ -2,6 +2,7 @@
 -- | Internal module to parse metadata
 module Hakyll.Core.Provider.Metadata
     ( loadMetadata
+    , loadMetadataFrom
     , metadata
     , page
 
@@ -50,11 +51,33 @@ loadMetadata p identifier = do
 
 
 --------------------------------------------------------------------------------
+loadMetadataFrom :: Provider -> Identifier -> String -> IO (Metadata, Maybe String)
+loadMetadataFrom p identifier b = do
+    (md, body) <- if probablyHasMetadataHeader' b
+        then second Just <$> loadMetadataHeader' fp b
+        else return (M.empty, Nothing)
+
+    emd <- case mi of
+        Nothing -> return M.empty
+        Just mi' -> loadMetadataFile $ resourceFilePath p mi'
+
+    return (M.union md emd, body)
+  where
+    normal = setVersion Nothing identifier
+    fp     = resourceFilePath p identifier
+    mi     = M.lookup normal (providerFiles p) >>= resourceInfoMetadata
+
+
+--------------------------------------------------------------------------------
 loadMetadataHeader :: FilePath -> IO (Metadata, String)
-loadMetadataHeader fp = do
-    contents <- readFile fp
+loadMetadataHeader fp = readFile fp >>= loadMetadataHeader' fp
+
+
+--------------------------------------------------------------------------------
+loadMetadataHeader' :: FilePath -> String -> IO (Metadata, String)
+loadMetadataHeader' fp contents = do
     case P.parse page fp contents of
-        Left err      -> error (show err)
+        Left err -> error (show err)
         Right (md, b) -> return (M.fromList md, b)
 
 
@@ -80,6 +103,12 @@ probablyHasMetadataHeader fp = do
     isMetadataHeader bs =
         let pre = BC.takeWhile (\x -> x /= '\n' && x /= '\r') bs
         in  BC.length pre >= 3 && BC.all (== '-') pre
+
+
+--------------------------------------------------------------------------------
+probablyHasMetadataHeader' :: String -> Bool
+probablyHasMetadataHeader' body = length pre >= 3 && all (== '-') pre
+    where pre = takeWhile (\x -> x /= '\n' && x /= '\r') body
 
 
 --------------------------------------------------------------------------------

@@ -3,11 +3,12 @@ module Hakyll.Core.Provider.MetadataCache
     ( resourceMetadata
     , resourceBody
     , resourceInvalidateMetadataCache
+    , resourceReloadMetadata
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Control.Monad                 (unless)
+import           Control.Monad                 (unless, when)
 import qualified Data.Map                      as M
 
 --------------------------------------------------------------------------------
@@ -47,11 +48,32 @@ resourceInvalidateMetadataCache p r = do
 
 
 --------------------------------------------------------------------------------
+resourceReloadMetadata :: Provider -> Identifier -> String -> IO ()
+resourceReloadMetadata p r b =
+  do resourceInvalidateMetadataCache p r
+     when (resourceExists p r) (loadFrom p r b)
+
+
+--------------------------------------------------------------------------------
 load :: Provider -> Identifier -> IO ()
 load p r = do
     mmof <- Store.isMember store mdk
     unless mmof $ do
         (md, body) <- loadMetadata p r
+        Store.set store mdk md
+        Store.set store bk  body
+  where
+    store = providerStore p
+    mdk   = [name, toFilePath r, "metadata"]
+    bk    = [name, toFilePath r, "body"]
+
+
+--------------------------------------------------------------------------------
+loadFrom :: Provider -> Identifier -> String -> IO ()
+loadFrom p r b = do
+    mmof <- Store.isMember store mdk
+    unless mmof $ do
+        (md, body) <- loadMetadataFrom p r b
         Store.set store mdk md
         Store.set store bk  body
   where

@@ -11,6 +11,7 @@ module Hakyll.Core.Compiler
     , getResourceString
     , getResourceLBS
     , getResourceFilePath
+    , reloadMetadata
 
     , Internal.Snapshot
     , saveSnapshot
@@ -45,6 +46,7 @@ import           Hakyll.Core.Identifier
 import           Hakyll.Core.Item
 import           Hakyll.Core.Logger            as Logger
 import           Hakyll.Core.Provider
+import           Hakyll.Core.Provider.MetadataCache
 import           Hakyll.Core.Routes
 import qualified Hakyll.Core.Store             as Store
 
@@ -179,3 +181,13 @@ debugCompiler :: String -> Compiler ()
 debugCompiler msg = do
     logger <- compilerLogger <$> compilerAsk
     compilerUnsafeIO $ Logger.debug logger msg
+
+
+--------------------------------------------------------------------------------
+reloadMetadata :: Item String -> Compiler (Item String)
+reloadMetadata item =
+  do read <- compilerAsk
+     let identifier = itemIdentifier item
+         provider = compilerProvider read
+     unsafeCompiler $ resourceReloadMetadata provider identifier (itemBody item)
+     return item
